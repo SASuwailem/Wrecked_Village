@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🏘️ The Wrecked Village: Debt Simulation</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: auto;
+      padding: 20px;
+      background: #f9f9f9;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input, button {
+      padding: 10px;
+      width: 100%;
+      margin: 6px 0;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #0052a3;
+    }
+    .chart-container {
+      margin-top: 30px;
+      height: 350px;
+      position: relative;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 15px;
+      white-space: pre-wrap;
+      border-radius: 4px;
+      border-left: 4px solid #0066cc;
+    }
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .explanation {
+      background: #e6f3ff;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 600px) {
+      .chart-container {
+        height: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>🏘️ The Wrecked Village: Debt Simulation</h2>
+  
+  <div class="explanation">
+    <p>This simulation demonstrates an interest-based monetary system where villagers borrow money and must repay with interest. 
+    Since the total money available is fixed, not all villagers can repay their loans plus interest, creating inevitable "winners" and "losers".</p>
+  </div>
+
+  <div class="form-group">
+    <label for="villagers">Number of Villagers:</label>
+    <input id="villagers" type="number" value="1000" min="1" aria-label="Number of Villagers">
+  </div>
+
+  <div class="form-group">
+    <label for="loan">Loan per Villager (dinars):</label>
+    <input id="loan" type="number" value="100" min="1" aria-label="Loan per Villager">
+  </div>
+
+  <div class="form-group">
+    <label for="interest">Interest Rate (% per year):</label>
+    <input id="interest" type="number" value="4" min="0" step="0.1" aria-label="Interest Rate">
+  </div>
+
+  <div class="form-group">
+    <label for="years">Number of Years:</label>
+    <input id="years" type="number" value="15" min="1" max="100" aria-label="Number of Years">
+  </div>
+
+  <button onclick="runSimulation()" aria-label="Run Simulation">Run Simulation</button>
+
+  <div id="loading" class="loading">Calculating simulation results...</div>
+
+  <div class="chart-container" role="img" aria-label="Debt Accumulation Chart">
+    <canvas id="debtChart"></canvas>
+  </div>
+  
+  <div class="chart-container" role="img" aria-label="Percentage of Unpaid Debt Chart">
+    <canvas id="percentChart"></canvas>
+  </div>
+  
+  <div class="chart-container" role="img" aria-label="Winners vs Losers Chart">
+    <canvas id="winnerChart"></canvas>
+  </div>
+
+  <pre id="summary" aria-live="polite"></pre>
+</div>
+
+<script>
+let charts = {};
+
+// Fisher-Yates shuffle algorithm
+function shuffle(array) {
+  let currentIndex = array.length;
+  let randomIndex;
+
+  while (currentIndex != 0) {
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
+}
+
+function validateInputs() {
+  const villagers = +document.getElementById('villagers').value;
+  const loan = +document.getElementById('loan').value;
+  const interest = (+document.getElementById('interest').value)/100;
+  const years = +document.getElementById('years').value;
+  
+  let valid = true;
+  let message = "";
+  
+  if (villagers <= 0) {
+    message += "Number of villagers must be positive.\n";
+    valid = false;
+  }
+  
+  if (loan <= 0) {
+    message += "Loan amount must be positive.\n";
+    valid = false;
+  }
+  
+  if (interest < 0) {
+    message += "Interest rate cannot be negative.\n";
+    valid = false;
+  }
+  
+  if (years <= 0 || years > 100) {
+    message += "Years must be between 1 and 100.\n";
+    valid = false;
+  }
+  
+  return { valid, message, villagers, loan, interest, years };
+}
+
+async function runSimulation() {
+  const loader = document.getElementById('loading');
+  loader.style.display = 'block';
+  
+  // Validate inputs before proceeding
+  const validation = validateInputs();
+  if (!validation.valid) {
+    alert(validation.message);
+    loader.style.display = 'none';
+    return;
+  }
+  
+  const { villagers, loan, interest, years } = validation;
+  
+  // Allow UI to update before running simulation
+  await new Promise(resolve => setTimeout(resolve, 10));
+  
+  const totalMoney = villagers * loan;
+  let debts = Array(villagers).fill(loan*(1+interest)); // immediate interest on initial loan
+  let summary = [];
+
+  for(let year=1; year<=years; year++) {
+    const totalDebtBeforeRepayment = debts.reduce((a,b)=>a+b,0);
+
+    // Create indices array for better shuffling
+    let indices = Array(villagers).fill().map((_, i) => i);
+    indices = shuffle(indices);
+
+    let availableMoney = totalMoney;
+    let winners = 0;
+    let newDebts = Array(villagers).fill(0);
+    
+    // Process repayment according to shuffled order
+    for (let i = 0; i < indices.length; i++) {
+      const idx = indices[i];
+      const debt = debts[idx];
+      
+      if (availableMoney >= debt) {
+        availableMoney -= debt;
+        newDebts[idx] = 0;
+        winners++;
+      } else {
+        newDebts[idx] = debt - availableMoney;
+        availableMoney = 0;
+      }
+    }
+    
+    debts = newDebts;
+    let unpaidDebt = debts.reduce((a,b)=>a+b,0);
+    let losers = villagers - winners;
+
+    summary.push({year, totalDebtBeforeRepayment, unpaidDebt, winners, losers});
+
+    // Next year, villagers borrow again and immediately accrue interest
+    debts = debts.map(d=>(d+loan)*(1+interest));
+  }
+
+  const lastYear = summary[summary.length-1];
+  document.getElementById('summary').innerText =
+`--- Simulation Summary ---
+Number of villagers: ${villagers}
+Loan per villager: ${loan} dinars
+Interest rate: ${(interest*100).toFixed(1)}%
+Number of years: ${years}
+Total initial principal: ${totalMoney.toLocaleString()} dinars
+Last year's total debt before repayment: ${lastYear.totalDebtBeforeRepayment.toLocaleString(undefined, {maximumFractionDigits: 2})} dinars
+Last year's winners: ${lastYear.winners.toLocaleString()} (${((lastYear.winners/villagers)*100).toFixed(1)}%)
+Last year's losers: ${lastYear.losers.toLocaleString()} (${((lastYear.losers/villagers)*100).toFixed(1)}%)
+Final debt-to-principal ratio: ${(lastYear.totalDebtBeforeRepayment/totalMoney).toFixed(2)}x`;
+
+  plotAllCharts(summary, totalMoney);
+  loader.style.display = 'none';
+}
+
+function plotAllCharts(summary, totalPrincipal) {
+  const labels = summary.map(s=>`Year ${s.year}`);
+
+  plotChart("debtChart", labels, [
+    {
+      label: "Total Debt Before Repayment",
+      data: summary.map(s=>s.totalDebtBeforeRepayment),
+      borderColor: "rgb(220, 53, 69)",
+      backgroundColor: "rgba(220, 53, 69, 0.1)"
+    },
+    {
+      label: "Unpaid Debt Carried Over",
+      data: summary.map(s=>s.unpaidDebt),
+      borderColor: "rgb(0, 123, 255)",
+      backgroundColor: "rgba(0, 123, 255, 0.1)"
+    }
+  ], "Debt Accumulation Over Time", "Debt (dinars)");
+
+  plotChart("percentChart", labels, [
+    {
+      label: "% Unpaid Debt to Principal",
+      data: summary.map(s=>(s.unpaidDebt/totalPrincipal)*100),
+      borderColor: "rgb(111, 66, 193)",
+      backgroundColor: "rgba(111, 66, 193, 0.1)"
+    }
+  ], "Percentage of Unpaid Debt Relative to Principal", "Percentage (%)");
+
+  plotChart("winnerChart", labels, [
+    {
+      label: "Winners (Fully Repaid)",
+      data: summary.map(s=>s.winners),
+      borderColor: "rgb(40, 167, 69)",
+      backgroundColor: "rgba(40, 167, 69, 0.1)"
+    },
+    {
+      label: "Losers (Not Fully Repaid)",
+      data: summary.map(s=>s.losers),
+      borderColor: "rgb(255, 193, 7)",
+      backgroundColor: "rgba(255, 193, 7, 0.1)"
+    }
+  ], "Winners vs Losers Each Year", "Number of Villagers");
+}
+
+function plotChart(canvasId, labels, datasets, title, ylabel) {
+  if (charts[canvasId]) charts[canvasId].destroy();
+  
+  charts[canvasId] = new Chart(document.getElementById(canvasId), {
+    type: "line",
+    data: {
+      labels,
+      datasets: datasets.map(d => ({
+        ...d,
+        tension: 0.2,
+        fill: true,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {
+          display: true,
+          text: title,
+          font: {
+            size: 16,
+            weight: 'bold'
+          },
+          padding: {
+            top: 10,
+            bottom: 20
+          }
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        },
+        legend: {
+          position: 'top'
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            display: true,
+            color: 'rgba(0,0,0,0.05)'
+          }
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: ylabel
+          },
+          grid: {
+            display: true
+          }
+        }
+      }
+    }
+  });
+}
+
+window.onload = runSimulation;
+</script>
+
+</body>
+</html>

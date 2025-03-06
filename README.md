@@ -60,4 +60,5 @@ There are two code files for modeling the Wrecked Village:
 1.	wrecked_village_simulation.py. Clear, straightforward Python script.
 2.	wrecked_village_simulation.html. Simple interactive HTML/JavaScript tool with interactive charts. It can be run on any browser.
 
-The code was developed with the assistance of GPT-4.5-Preview.
+The code was developed with the assistance of GPT-4.5-Preview with minor enhancements by Claude-3.7-Sonnet.
+

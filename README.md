@@ -5,7 +5,7 @@ The Wrecked Village
 
 This is a toy model of an interest-based monetary system. It is the story of how a simple loan system can wreck not just a village but an entire economy
 
-Imagine five friends migrating to a remote island and establishing a small village there. Each takes up a profession that suits them, complementing one another. After a short while, a sixth friend, who doesn't possess any particular skill but has a large amount of gold dinars, decides to join them for a while.
+Imagine five friends migrating to a remote island and establishing a small village there. Each takes up a profession that suits them, complementing one another through barter trade. After a short while, a sixth friend, who doesn't possess any particular skill but has a large amount of gold dinars, decides to join them for a while.
 
 At that point, the friends realize that it would be beneficial for each of them to have some money to facilitate the exchange of their goods and services with one another instead of trading on barter basis. So, each borrows one hundred dinars from their new friend. However, the friend stipulates a 4% interest rate on each loan, requiring each villager to repay their debt at the end of the year.
 At first glance, nothing seems unusual. However, the lender's condition is impossible to fulfill. Why? 
